@@ -21,6 +21,7 @@ export const POST = api(async (request) => {
   if (!okEmail || !okIp) throw new HttpError(429, "Muitas tentativas. Aguarde alguns minutos e tente de novo.");
 
   const r = await entrar(email, senha);
+  if (r?.pendente) throw new HttpError(403, "Seu cadastro ainda está aguardando aprovação da diretoria.");
   if (!r) {
     await auditar(null, "login_falhou", { email });
     throw new HttpError(401, "E-mail ou senha incorretos.");

@@ -152,5 +152,37 @@ trocar(
     "bloco 'enviado ao Latitude'",
 )
 
+# 8) links de convite/redefinição apontam para as páginas do servidor; novo status e selo de pendentes
+trocar(
+    'function gerarLinkConvite(user){return `${window.location.href.split("#")[0]}#convite=${user.tokenConvite}`;}',
+    'function gerarLinkConvite(user){return `${window.location.origin}/convite/${user.tokenConvite}`;}',
+    "link de convite",
+)
+trocar(
+    'copiarTexto(`${window.location.href.split("#")[0]}#convite=${t}`,user.id+"_convite");',
+    'copiarTexto(`${window.location.origin}/convite/${t}`,user.id+"_convite");',
+    "link de convite reenviado",
+)
+trocar(
+    'copiarTexto(`${window.location.href.split("#")[0]}#redefinir=${t}`,u.id+"_redefinir");',
+    'copiarTexto(`${window.location.origin}/convite/${t}`,u.id+"_redefinir");',
+    "link de redefinir senha",
+)
+trocar(
+    '  convite_pendente:{label:"Convite pendente",cor:"#78350f",bg:"#fefce8"},',
+    '  aguardando_aprovacao:{label:"Aguardando aprovação",cor:"#9a3412",bg:"#ffedd5"},\n  convite_pendente:{label:"Convite pendente",cor:"#78350f",bg:"#fefce8"},',
+    "status aguardando aprovação",
+)
+trocar(
+    "  const [authLoading,setAuthLoading]=useState(false);",
+    "  const [authLoading,setAuthLoading]=useState(false);\n  const [pendentes,setPendentes]=useState(0);\n  useEffect(()=>{if(usuarioAtual?.perfil==='diretoria')getUsers().then(l=>setPendentes(l.filter(u=>u.status==='aguardando_aprovacao').length)).catch(()=>{});},[usuarioAtual]);",
+    "contagem de cadastros pendentes",
+)
+trocar(
+    'title="Gestão de usuários" style={{background:"rgba(255,255,255,.1)",border:"none",color:"#fff",width:28,height:28,borderRadius:6,cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>👥</button>}',
+    'title={pendentes>0?`Gestão de usuários — ${pendentes} cadastro(s) aguardando aprovação`:"Gestão de usuários"} style={{position:"relative",background:"rgba(255,255,255,.1)",border:"none",color:"#fff",width:28,height:28,borderRadius:6,cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>👥{pendentes>0&&<span style={{position:"absolute",top:-5,right:-5,background:"#ef4444",color:"#fff",borderRadius:10,fontSize:9,fontWeight:800,minWidth:15,height:15,lineHeight:"15px",textAlign:"center",padding:"0 3px"}}>{pendentes}</span>}</button>}',
+    "selo de pendentes no botão de usuários",
+)
+
 open(DESTINO, "w", encoding="utf-8").write(s)
 print(f"\nGravado: {DESTINO} ({len(s):,} caracteres)")

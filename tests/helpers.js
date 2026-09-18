@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 
-export function req(path, { method = "GET", body, cookie, origin = "http://localhost" } = {}) {
+export function req(path, { method = "GET", body, cookie, origin = "http://localhost", ip } = {}) {
   const headers = { host: "localhost" };
+  if (ip) headers["x-forwarded-for"] = ip;
   if (origin) headers.origin = origin;
   if (cookie) headers.cookie = cookie;
   if (body !== undefined) headers["content-type"] = "application/json";

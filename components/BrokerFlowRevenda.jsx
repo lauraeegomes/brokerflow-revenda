@@ -3955,6 +3955,7 @@ const PERFIS={
 };
 
 const STATUS_USUARIO={
+  aguardando_aprovacao:{label:"Aguardando aprovação",cor:"#9a3412",bg:"#ffedd5"},
   convite_pendente:{label:"Convite pendente",cor:"#78350f",bg:"#fefce8"},
   ativo:{label:"Ativo",cor:"#065f46",bg:"#ecfdf5"},
   inativo:{label:"Inativo",cor:"#6b7280",bg:"#f4f6fb"},
@@ -4004,13 +4005,13 @@ function GestaoUsuarios({usuarioAtual,onClose}){
     copiarLink(novo);
   }
 
-  function gerarLinkConvite(user){return `${window.location.href.split("#")[0]}#convite=${user.tokenConvite}`;}
+  function gerarLinkConvite(user){return `${window.location.origin}/convite/${user.tokenConvite}`;}
 
   async function reenviarConvite(user){
     const t=gerarToken();
     const updated=users.map(u=>u.id===user.id?{...u,tokenConvite:t,tokenConviteAt:new Date().toISOString()}:u);
     await saveUsers(updated);setUsers(updated);
-    copiarTexto(`${window.location.href.split("#")[0]}#convite=${t}`,user.id+"_convite");
+    copiarTexto(`${window.location.origin}/convite/${t}`,user.id+"_convite");
   }
 
   function copiarLink(user){copiarTexto(gerarLinkConvite(user),user.id+"_convite");}
@@ -4135,7 +4136,7 @@ function GestaoUsuarios({usuarioAtual,onClose}){
                         const t=gerarToken();
                         const updated=users.map(x=>x.id===u.id?{...x,tokenRedefinir:t,tokenRedefinirAt:new Date().toISOString()}:x);
                         await saveUsers(updated);setUsers(updated);
-                        copiarTexto(`${window.location.href.split("#")[0]}#redefinir=${t}`,u.id+"_redefinir");
+                        copiarTexto(`${window.location.origin}/convite/${t}`,u.id+"_redefinir");
                       }} style={{padding:"5px 11px",background:linkCopiado===u.id+"_redefinir"?"#ecfdf5":"#f1f5f9",border:"none",borderRadius:6,fontFamily:"inherit",fontSize:10.5,fontWeight:600,cursor:"pointer",color:linkCopiado===u.id+"_redefinir"?"#065f46":"#64748b"}}>{linkCopiado===u.id+"_redefinir"?"✓ Link copiado":"🔑 Gerar link de redefinição"}</button>
                     )}
                     {u.id!==usuarioAtual.id&&(
@@ -4355,6 +4356,8 @@ function ProspeccaoTab({captId,captacoes,f,comparaveis,setComparaveis,setTab,toa
 export default function App({usuarioInicial}){
   const [usuarioAtual,setUsuarioAtual]=useState(usuarioInicial||null);
   const [authLoading,setAuthLoading]=useState(false);
+  const [pendentes,setPendentes]=useState(0);
+  useEffect(()=>{if(usuarioAtual?.perfil==='diretoria')getUsers().then(l=>setPendentes(l.filter(u=>u.status==='aguardando_aprovacao').length)).catch(()=>{});},[usuarioAtual]);
   const [showGestaoUsers,setShowGestaoUsers]=useState(false);
 
   async function handleLogout(){await clearSession();window.location.href="/login";}
@@ -4933,7 +4936,7 @@ function chaveImovelUnidade(f){
             <div style={{width:32,height:32,borderRadius:"50%",background:pInfo.bg,border:`2px solid ${pInfo.cor}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
               <Icon name={pInfo.icon} size={14} color={pInfo.cor}/>
             </div>
-            {perfil==="diretoria"&&<button onClick={()=>setShowGestaoUsers(true)} title="Gestão de usuários" style={{background:"rgba(255,255,255,.1)",border:"none",color:"#fff",width:28,height:28,borderRadius:6,cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>👥</button>}
+            {perfil==="diretoria"&&<button onClick={()=>setShowGestaoUsers(true)} title={pendentes>0?`Gestão de usuários — ${pendentes} cadastro(s) aguardando aprovação`:"Gestão de usuários"} style={{position:"relative",background:"rgba(255,255,255,.1)",border:"none",color:"#fff",width:28,height:28,borderRadius:6,cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>👥{pendentes>0&&<span style={{position:"absolute",top:-5,right:-5,background:"#ef4444",color:"#fff",borderRadius:10,fontSize:9,fontWeight:800,minWidth:15,height:15,lineHeight:"15px",textAlign:"center",padding:"0 3px"}}>{pendentes}</span>}</button>}
             <button onClick={handleLogout} title="Sair" style={{background:"rgba(255,255,255,.1)",border:"none",color:"rgba(255,255,255,.7)",width:28,height:28,borderRadius:6,cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>⏏</button>
           </div>
         </div>

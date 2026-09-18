@@ -54,8 +54,9 @@ export default function LoginForm({ semUsuarios }) {
         <button type="submit" disabled={enviando} style={{ width: "100%", padding: "13px 16px", background: enviando ? "#93a4d9" : "#1e43f9", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: enviando ? "default" : "pointer", fontFamily: "inherit" }}>
           {enviando ? "Entrando…" : "Entrar"}
         </button>
-        <div style={{ fontSize: 11, color: "#8a90a0", marginTop: 16, textAlign: "center" }}>
-          Primeiro acesso? Use o link de convite enviado pela diretoria.
+        <div style={{ fontSize: 12, color: "#5a606e", marginTop: 18, textAlign: "center", lineHeight: 1.6 }}>
+          Ainda não tem conta? <a href="/cadastro" style={{ color: "#1e43f9", fontWeight: 700 }}>Criar conta</a>
+          <div style={{ fontSize: 11, color: "#8a90a0" }}>Recebeu um link de convite? Abra o link para criar sua senha.</div>
         </div>
       </form>
     </div>

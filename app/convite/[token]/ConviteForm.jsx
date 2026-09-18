@@ -46,10 +46,10 @@ export default function ConviteForm({ token }) {
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, background: "linear-gradient(160deg,#092f68,#1e43f9)" }}>
       <form onSubmit={salvar} style={card}>
         <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 3, textTransform: "uppercase", color: "#1e43f9", marginBottom: 6 }}>MyBroker Imobiliária</div>
-        <div style={{ fontSize: 22, fontWeight: 800, color: "#092f68", marginBottom: 6 }}>Criar sua senha</div>
+        <div style={{ fontSize: 22, fontWeight: 800, color: "#092f68", marginBottom: 6 }}>{info?.redefinir ? "Redefinir sua senha" : "Criar sua senha"}</div>
 
-        {invalido && <div style={{ fontSize: 13, color: "#991b1b", background: "#fef2f2", padding: "12px 14px", borderRadius: 8 }}>Este convite é inválido ou expirou. Peça um novo link à diretoria.</div>}
-        {!info && !invalido && <div style={{ fontSize: 13, color: "#5a606e" }}>Verificando convite…</div>}
+        {invalido && <div style={{ fontSize: 13, color: "#991b1b", background: "#fef2f2", padding: "12px 14px", borderRadius: 8 }}>Este link é inválido ou expirou. Peça um novo à diretoria.</div>}
+        {!info && !invalido && <div style={{ fontSize: 13, color: "#5a606e" }}>Verificando link…</div>}
 
         {info && (
           <>
