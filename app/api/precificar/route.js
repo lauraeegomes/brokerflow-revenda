@@ -1,6 +1,6 @@
 import { api, exigirUsuario, permitir, HttpError } from "@/lib/auth.js";
 import { auditar } from "@/lib/db.js";
-import { pesquisarNaWeb } from "@/lib/gemini.js";
+import { pesquisar } from "@/lib/pesquisaWeb.js";
 import { extrairJson, processarPesquisa, REGRAS_PESQUISA } from "@/lib/pricing.js";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +30,7 @@ export const POST = api(async (request) => {
 
   let pesquisa;
   try {
-    pesquisa = await pesquisarNaWeb(prompt + REGRAS_PESQUISA);
+    pesquisa = await pesquisar(prompt + REGRAS_PESQUISA);
   } catch (e) {
     await auditar(user.id, "precificacao_erro", { erro: String(e?.message || e).slice(0, 200) });
     return erro(502, e?.message || "Falha na pesquisa na web.");
@@ -50,7 +50,7 @@ export const POST = api(async (request) => {
     id: "msg_" + Date.now().toString(36),
     type: "message",
     role: "assistant",
-    model: "gemini-web",
+    model: pesquisa.modelo,
     content: [{ type: "text", text: JSON.stringify(final) }],
     stop_reason: "end_turn",
   });
