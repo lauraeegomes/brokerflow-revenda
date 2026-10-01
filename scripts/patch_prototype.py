@@ -3,11 +3,12 @@ Uso:  python scripts/patch_prototype.py
 Lê  scripts/BrokerFlowRevenda.original.jsx  e grava  components/BrokerFlowRevenda.jsx
 Cada troca exige exatamente 1 ocorrência do trecho original; se o protótipo mudar, o script falha (de propósito).
 """
-import os, re, sys
+import base64, os, re, sys
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ORIGEM = os.path.join(RAIZ, "scripts", "BrokerFlowRevenda.original.jsx")
 DESTINO = os.path.join(RAIZ, "components", "BrokerFlowRevenda.jsx")
+ASSETS = os.path.join(RAIZ, "scripts", "assets")
 
 s = open(ORIGEM, encoding="utf-8").read()
 
@@ -19,6 +20,21 @@ def trocar(antigo, novo, nome):
         sys.exit(f"[FALHA] '{nome}': esperado 1 ocorrência, encontrado {n}")
     s = s.replace(antigo, novo)
     print(f"[ok] {nome}")
+
+
+def trocar_regex(padrao, novo, nome):
+    """Como trocar(), mas o 'antigo' é um regex — usado quando o trecho original é grande
+    demais (ou binário, como um logo em base64) para colar literalmente no script."""
+    global s
+    n = len(re.findall(padrao, s))
+    if n != 1:
+        sys.exit(f"[FALHA] '{nome}': esperado 1 ocorrência, encontrado {n}")
+    s = re.sub(padrao, lambda m: novo, s, count=1)
+    print(f"[ok] {nome}")
+
+
+def base64_de(nome_arquivo):
+    return base64.b64encode(open(os.path.join(ASSETS, nome_arquivo), "rb").read()).decode()
 
 
 # 1) cabeçalho Next.js
@@ -182,6 +198,40 @@ trocar(
     'title="Gestão de usuários" style={{background:"rgba(255,255,255,.1)",border:"none",color:"#fff",width:28,height:28,borderRadius:6,cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>👥</button>}',
     'title={pendentes>0?`Gestão de usuários — ${pendentes} cadastro(s) aguardando aprovação`:"Gestão de usuários"} style={{position:"relative",background:"rgba(255,255,255,.1)",border:"none",color:"#fff",width:28,height:28,borderRadius:6,cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>👥{pendentes>0&&<span style={{position:"absolute",top:-5,right:-5,background:"#ef4444",color:"#fff",borderRadius:10,fontSize:9,fontWeight:800,minWidth:15,height:15,lineHeight:"15px",textAlign:"center",padding:"0 3px"}}>{pendentes}</span>}</button>}',
     "selo de pendentes no botão de usuários",
+)
+
+# 9) a secretaria some do fluxo (não existe mais essa etapa)
+trocar(
+    "Corretor capta → Secretaria organiza → Precificação orienta → Backoffice valida → Latitude publica.",
+    "Corretor capta → Precificação orienta → Backoffice valida → Latitude publica.",
+    "remove 'Secretaria organiza' da frase do fluxo",
+)
+
+# 10) novo ícone da MyBroker no cabeçalho (losango azul, sem a placa preta nem o ® — a placa branca atrás do
+#     ícone já vem do próprio cabeçalho, então o losango precisa ser azul, não branco)
+trocar_regex(
+    r'LOGO_MYBROKER_ICON="data:image/png;base64,[^"]+"',
+    f'LOGO_MYBROKER_ICON="data:image/png;base64,{base64_de("logo_icone_azul.png")}"',
+    "novo ícone no cabeçalho",
+)
+
+# 11) nova logo completa nos relatórios em PDF (sem a placa preta nem o ®)
+trocar_regex(
+    r'window\.__mbLogoFull="data:image/png;base64,[^"]+"',
+    f'window.__mbLogoFull="data:image/png;base64,{base64_de("logo_horizontal_preto.png")}"',
+    "nova logo nos relatórios em PDF",
+)
+
+# 12) botão visível para a diretoria mudar o perfil de alguém (antes só dava pra clicar na etiqueta colorida)
+trocar(
+    '''{u.id!==usuarioAtual.id&&(
+                      <>
+                        {u.status!=="ativo"&&u.status!=="convite_pendente"&&<button onClick={()=>alterarStatus(u.id,"ativo")}''',
+    '''{u.id!==usuarioAtual.id&&(
+                      <>
+                        {editandoPerfil!==u.id&&<button onClick={()=>setEditandoPerfil(u.id)} style={{padding:"5px 11px",background:"#eef2ff",border:"none",borderRadius:6,fontFamily:"inherit",fontSize:10.5,fontWeight:700,cursor:"pointer",color:C.b2}}>Mudar perfil</button>}
+                        {u.status!=="ativo"&&u.status!=="convite_pendente"&&<button onClick={()=>alterarStatus(u.id,"ativo")}''',
+    "botão 'Mudar perfil' em Gestão de Usuários",
 )
 
 open(DESTINO, "w", encoding="utf-8").write(s)
