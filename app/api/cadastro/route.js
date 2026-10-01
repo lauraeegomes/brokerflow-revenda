@@ -1,12 +1,10 @@
-import { api, permitir, HttpError, mesmaOrigem } from "@/lib/auth.js";
+import { api, cookieSessao, permitir, HttpError, mesmaOrigem } from "@/lib/auth.js";
 import { auditar } from "@/lib/db.js";
 import { cadastrar } from "@/lib/users.js";
 
 export const dynamic = "force-dynamic";
 
-const MENSAGEM = "Cadastro recebido! A diretoria vai analisar e liberar seu acesso. Você poderá entrar com o e-mail e a senha que acabou de criar.";
-
-// Auto-cadastro público. A pessoa cria a própria senha, mas só entra depois da aprovação da diretoria.
+// Auto-cadastro público: a pessoa cria a própria senha e já entra, sem aprovação da diretoria.
 export const POST = api(async (request) => {
   if (!mesmaOrigem(request)) throw new HttpError(403, "Origem inválida.");
   let body;
@@ -21,7 +19,10 @@ export const POST = api(async (request) => {
   const okEmail = await permitir(`cadastro:e:${email}`, 3, 86400);
   if (!okIp || !okEmail) throw new HttpError(429, "Muitas tentativas. Tente novamente mais tarde.");
 
-  const { id } = await cadastrar({ ...body, email });
-  await auditar(id, id ? "cadastro_criado" : "cadastro_email_existente", { email });
-  return Response.json({ ok: true, mensagem: MENSAGEM });
+  const { user, token } = await cadastrar({ ...body, email });
+  await auditar(user.id, "cadastro_criado", { email });
+  return new Response(JSON.stringify({ user }), {
+    status: 200,
+    headers: { "Content-Type": "application/json", "Set-Cookie": cookieSessao(token) },
+  });
 });
