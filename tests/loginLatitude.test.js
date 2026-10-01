@@ -39,6 +39,29 @@ describe("loginComLatitude (lib)", () => {
     expect(r).toMatchObject({ empresaId: UBERLANDIA, perfilSugerido: "diretoria", nome: "Pedro Corretor" });
   });
 
+  it("mapeia os cargos reais do Latitude para os 4 perfis do BrokerFlow", async () => {
+    const perfilDe = async (roles) => {
+      vi.stubGlobal("fetch", async () => respostaLatitude({ roles }));
+      return (await loginComLatitude("x@x.com", "s")).perfilSugerido;
+    };
+    expect(await perfilDe(["Diretor"])).toBe("diretoria");
+    expect(await perfilDe(["Gerente"])).toBe("gerente");
+    expect(await perfilDe(["SecVendas"])).toBe("backoffice"); // Secretaria de Vendas
+    expect(await perfilDe(["Corretor"])).toBe("corretor");
+    // cargos que misturam gente de verdade com marketing/RH/suporte do Latitude: por segurança,
+    // caem no menor privilégio até a diretoria promover manualmente quem precisar (decisão 2026-10-01).
+    expect(await perfilDe(["Master"])).toBe("corretor");
+    expect(await perfilDe(["AdmMatriz"])).toBe("corretor");
+    // cargos raros/desconhecidos também caem no padrão seguro, nunca em algo privilegiado
+    expect(await perfilDe(["GI"])).toBe("corretor");
+    expect(await perfilDe(["Coordenador"])).toBe("corretor");
+    expect(await perfilDe([])).toBe("corretor");
+    expect(await perfilDe(undefined)).toBe("corretor");
+    // mais de um cargo: vale o mais privilegiado
+    expect(await perfilDe(["Corretor", "Diretor"])).toBe("diretoria");
+    expect(await perfilDe(["Master", "Gerente"])).toBe("gerente");
+  });
+
   it("recusa quando a empresa não é My Broker ou a senha está errada", async () => {
     vi.stubGlobal("fetch", async () => respostaLatitude({ empresaId: OUTRA_EMPRESA }));
     expect(await loginComLatitude("x@x.com", "s")).toBeNull();
