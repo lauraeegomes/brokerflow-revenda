@@ -3,6 +3,7 @@ import { auditar, query } from "@/lib/db.js";
 import { kvLerInterno, kvGravarInterno, visivel, equipeDe } from "@/lib/kv.js";
 import { pendenciasDoEnvio } from "@/lib/checklist.js";
 import { enviarParaLatitude, deBrokerFlow, acharCorretor, paraNumero, LatitudeError } from "@/lib/latitudeAdapter.ts";
+import { baixarFoto } from "@/lib/fotos.js";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -54,14 +55,17 @@ export const POST = api(async (request) => {
 
   const f = rec.f || {};
   try {
-    const fotos = (rec.fotos || [])
-      .filter((x) => x.status === "aprovada")
-      .slice(0, 30)
-      .map((x, i) => {
-        const d = dataUrlParaBytes(x.refinadaUrl || x.dataUrl);
-        return d ? { nome: `foto-${String(i + 1).padStart(2, "0")}.${d.mime.includes("png") ? "png" : "jpg"}`, bytes: d.bytes, mime: d.mime } : null;
-      })
-      .filter(Boolean);
+    // Fotos novas ficam no bucket (x.path); captações salvas antes dessa mudança ainda têm a
+    // imagem embutida no próprio registro (x.dataUrl) — os dois formatos continuam funcionando.
+    const aprovadas = (rec.fotos || []).filter((x) => x.status === "aprovada").slice(0, 30);
+    const fotos = (
+      await Promise.all(
+        aprovadas.map(async (x, i) => {
+          const d = x.path ? await baixarFoto(x.path).catch(() => null) : dataUrlParaBytes(x.refinadaUrl || x.dataUrl);
+          return d ? { nome: `foto-${String(i + 1).padStart(2, "0")}.${d.mime.includes("png") ? "png" : "jpg"}`, bytes: d.bytes, mime: d.mime } : null;
+        }),
+      )
+    ).filter(Boolean);
 
     let corretorId = null;
     try {

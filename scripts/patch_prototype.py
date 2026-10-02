@@ -234,5 +234,63 @@ trocar(
     "botão 'Mudar perfil' em Gestão de Usuários",
 )
 
+# 13) fotos passam a morar fora do registro (bucket do Supabase) — é o que permite passar de ~15.
+#     Ao salvar, cada foto nova é enviada uma vez (POST /api/fotos/upload) e vira só {path:"..."}
+#     no registro; a imagem em si (dataUrl) nunca mais é escrita no kv.
+trocar(
+    '''  async function salvar(){
+    const id=captId||Date.now().toString(36);
+
+    const record={
+      f,cat,subcatCasa,
+      autorStatus:autorStatus||"aguardando",
+      autorTs:autorTs?.toISOString()||null,
+      authCode,
+      validStatus,validObs,docsVerificados,precoAlinhado,
+      fotos,descComercial,descAprovada,tituloAnuncio,galeriaConfirmada,latStatus,''',
+    '''  async function enviarFotosPendentes(id,lista){
+    const prontas=[];
+    for(const foto of lista){
+      if(foto.path){prontas.push(foto);continue;}
+      const r=await fetch("/api/fotos/upload",{method:"POST",headers:{"Content-Type":"application/json"},credentials:"same-origin",body:JSON.stringify({captId:id,dataUrl:foto.refinadaUrl||foto.dataUrl})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok) throw new Error(j.error||"Falha ao enviar foto.");
+      prontas.push({...foto,path:j.path});
+    }
+    return prontas;
+  }
+
+  async function salvar(){
+    const id=captId||Date.now().toString(36);
+
+    let fotosEnviadas=fotos;
+    if(fotos.some(ft=>!ft.path)){
+      try{
+        fotosEnviadas=await enviarFotosPendentes(id,fotos);
+      }catch(e){
+        toast("⚠️ Não foi possível enviar as fotos agora. Tente de novo em instantes.");
+        return;
+      }
+      setFotos(fotosEnviadas);
+    }
+
+    const record={
+      f,cat,subcatCasa,
+      autorStatus:autorStatus||"aguardando",
+      autorTs:autorTs?.toISOString()||null,
+      authCode,
+      validStatus,validObs,docsVerificados,precoAlinhado,
+      fotos:fotosEnviadas.map(({dataUrl,refinadaUrl,originalUrl,...resto})=>({...resto,refinada:!!refinadaUrl})),descComercial,descAprovada,tituloAnuncio,galeriaConfirmada,latStatus,''',
+    "fotos são enviadas ao bucket antes de salvar",
+)
+
+# 14) ao reabrir uma captação salva, reconstrói dataUrl/refinadaUrl a partir do caminho no bucket
+#     (o resto do app — galeria, refinamento, PDF — continua igual: só troca o que tem em src="…").
+trocar(
+    "    setFotos(item.fotos||[]);",
+    '''    setFotos((item.fotos||[]).map(ft=>ft.path?{...ft,dataUrl:"/api/fotos/ver?path="+encodeURIComponent(ft.path),refinadaUrl:ft.refinada?"/api/fotos/ver?path="+encodeURIComponent(ft.path):null}:ft));''',
+    "reconstrói fotos do bucket ao reabrir a captação",
+)
+
 open(DESTINO, "w", encoding="utf-8").write(s)
 print(f"\nGravado: {DESTINO} ({len(s):,} caracteres)")

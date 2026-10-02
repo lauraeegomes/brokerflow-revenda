@@ -4625,8 +4625,31 @@ Responda APENAS com JSON puro (sem markdown, sem backticks):
   if(authLoading) return(<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",fontFamily:"Inter,sans-serif",fontSize:14,color:"#5a606e"}}>Carregando…</div>);
   if(!usuarioAtual) return(<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",fontFamily:"Inter,sans-serif",fontSize:14,color:"#5a606e"}}>Nenhum usuário encontrado. Abra o sistema em produção para fazer login.</div>);
 
+  async function enviarFotosPendentes(id,lista){
+    const prontas=[];
+    for(const foto of lista){
+      if(foto.path){prontas.push(foto);continue;}
+      const r=await fetch("/api/fotos/upload",{method:"POST",headers:{"Content-Type":"application/json"},credentials:"same-origin",body:JSON.stringify({captId:id,dataUrl:foto.refinadaUrl||foto.dataUrl})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok) throw new Error(j.error||"Falha ao enviar foto.");
+      prontas.push({...foto,path:j.path});
+    }
+    return prontas;
+  }
+
   async function salvar(){
     const id=captId||Date.now().toString(36);
+
+    let fotosEnviadas=fotos;
+    if(fotos.some(ft=>!ft.path)){
+      try{
+        fotosEnviadas=await enviarFotosPendentes(id,fotos);
+      }catch(e){
+        toast("⚠️ Não foi possível enviar as fotos agora. Tente de novo em instantes.");
+        return;
+      }
+      setFotos(fotosEnviadas);
+    }
 
     const record={
       f,cat,subcatCasa,
@@ -4634,7 +4657,7 @@ Responda APENAS com JSON puro (sem markdown, sem backticks):
       autorTs:autorTs?.toISOString()||null,
       authCode,
       validStatus,validObs,docsVerificados,precoAlinhado,
-      fotos,descComercial,descAprovada,tituloAnuncio,galeriaConfirmada,latStatus,
+      fotos:fotosEnviadas.map(({dataUrl,refinadaUrl,originalUrl,...resto})=>({...resto,refinada:!!refinadaUrl})),descComercial,descAprovada,tituloAnuncio,galeriaConfirmada,latStatus,
       historico,
       results,comparaveis,diagComercial,estrategiaSelecionada,argumentoTexto,precCode,
       precoFinal,precoFinalStatus,acoesComerciais,
@@ -4684,7 +4707,7 @@ Responda APENAS com JSON puro (sem markdown, sem backticks):
     setValidObs(item.validObs||"");
     setDocsVerificados(item.docsVerificados||false);
     setPrecoAlinhado(item.precoAlinhado||false);
-    setFotos(item.fotos||[]);
+    setFotos((item.fotos||[]).map(ft=>ft.path?{...ft,dataUrl:"/api/fotos/ver?path="+encodeURIComponent(ft.path),refinadaUrl:ft.refinada?"/api/fotos/ver?path="+encodeURIComponent(ft.path):null}:ft));
     setDescComercial(item.descComercial||"");
     setDescAprovada(item.descAprovada||false);
     setTituloAnuncio(item.tituloAnuncio||"");
