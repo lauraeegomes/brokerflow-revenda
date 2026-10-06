@@ -2,7 +2,7 @@ import { api, exigirUsuario, HttpError } from "@/lib/auth.js";
 import { auditar, query } from "@/lib/db.js";
 import { kvLerInterno, kvGravarInterno, visivel, equipeDe } from "@/lib/kv.js";
 import { pendenciasDoEnvio } from "@/lib/checklist.js";
-import { enviarParaLatitude, deBrokerFlow, acharCorretor, paraNumero, LatitudeError } from "@/lib/latitudeAdapter.ts";
+import { enviarParaLatitude, deBrokerFlow, acharCorretor, paraNumero, LatitudeError, EMPRESAS_LATITUDE, AGENCIA_PADRAO } from "@/lib/latitudeAdapter.ts";
 import { baixarFoto } from "@/lib/fotos.js";
 
 export const dynamic = "force-dynamic";
@@ -67,24 +67,28 @@ export const POST = api(async (request) => {
       )
     ).filter(Boolean);
 
+    const agencia = [body?.agencia, f.agencia].find((a) => Object.hasOwn(EMPRESAS_LATITUDE, a)) ?? AGENCIA_PADRAO;
     let corretorId = null;
     try {
-      corretorId = await acharCorretor(String(f.corretor || ""));
+      corretorId = await acharCorretor(String(f.corretor || ""), EMPRESAS_LATITUDE[agencia]);
     } catch {
       corretorId = null;
     }
 
     const tipoRotulo = { casa: "Casa", apartamento: "Apartamento", terreno: "Terreno", comercial: "Imóvel comercial", rural: "Imóvel rural" }[rec.cat] || "Imóvel";
-    const input = deBrokerFlow({
-      captureId: captId,
-      cat: rec.cat,
-      subcat: rec.subcatCasa || null,
-      titulo: rec.tituloAnuncio || `${tipoRotulo}${f.bairro ? " em " + f.bairro : ""}`,
-      precoFinal: paraNumero(rec.precoFinal) || paraNumero(f.preco_pedido),
-      f,
-      corretorId,
-      fotos,
-    });
+    const input = {
+      ...deBrokerFlow({
+        captureId: captId,
+        cat: rec.cat,
+        subcat: rec.subcatCasa || null,
+        titulo: rec.tituloAnuncio || `${tipoRotulo}${f.bairro ? " em " + f.bairro : ""}`,
+        precoFinal: paraNumero(rec.precoFinal) || paraNumero(f.preco_pedido),
+        f,
+        corretorId,
+        fotos,
+      }),
+      agencia,
+    };
     const r = await enviarParaLatitude(input, { publicar: false });
 
     const agora = new Date();

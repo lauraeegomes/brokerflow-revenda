@@ -8,7 +8,7 @@
  * (só servidor — nunca importar em componente client; as credenciais vêm de env vars).
  *
  * Env vars:
- *   LATITUDE_EMAIL, LATITUDE_SENHA, LATITUDE_EMPRESA_ID   (obrigatórias)
+ *   LATITUDE_EMAIL, LATITUDE_SENHA   (obrigatórias; a agência é escolhida por captação)
  *   LATITUDE_API_URL   (opcional, padrão https://mcp.latitude.app.br/api)
  *
  * ─────────────────────────────────────────────────────────────────────────
@@ -41,6 +41,14 @@
  */
 
 const BASE = process.env.LATITUDE_API_URL ?? "https://mcp.latitude.app.br/api";
+
+// ─── Agências My Broker no Latitude ───────────────────────────────────────
+export const EMPRESAS_LATITUDE = {
+  uberlandia: "45bdffcb-bb59-43a1-9edf-258c3aa5177e",
+  santa_monica: "617cac75-2853-4ad9-84bd-27c32cfa317f",
+} as const;
+export type Agencia = keyof typeof EMPRESAS_LATITUDE;
+export const AGENCIA_PADRAO: Agencia = "uberlandia";
 
 // ─── IDs fixos do Latitude (confirmados ao vivo, Uberlândia) ──────────────
 export const FINALIDADE = {
@@ -90,6 +98,7 @@ export type LatitudeImovelInput = {
   longitude?: number | null;
   proprietario: { nome: string; telefone: string; email?: string | null; cpf?: string | null };
   corretorId?: string | null; // GUID do corretor no Latitude
+  agencia?: Agencia;
   fotos?: FotoInput[];
 };
 
@@ -134,32 +143,33 @@ const int = (v: unknown) => {
 };
 
 // ─── HTTP + auth ──────────────────────────────────────────────────────────
-let cache: { token: string; ate: number } | null = null;
+const cache = new Map<string, { token: string; ate: number }>();
 
-async function token(): Promise<string> {
-  if (cache && cache.ate > Date.now()) return cache.token;
+async function token(empresaId: string = EMPRESAS_LATITUDE[AGENCIA_PADRAO]): Promise<string> {
+  const c = cache.get(empresaId);
+  if (c && c.ate > Date.now()) return c.token;
   const email = process.env.LATITUDE_EMAIL;
   const senha = process.env.LATITUDE_SENHA;
   if (!email || !senha) throw new Error("LATITUDE_EMAIL / LATITUDE_SENHA não configurados.");
-  const r = await fetch(`${BASE}/auth/login`, {
+  const r = await fetch(`${BASE}/auth/login-por-empresa`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, senha }),
+    body: JSON.stringify({ email, senha, empresaId }),
   });
-  if (!r.ok) throw new LatitudeError(r.status, "/auth/login", await r.text());
+  if (!r.ok) throw new LatitudeError(r.status, "/auth/login-por-empresa", await r.text());
   const j = (await r.json()) as { data?: { jwt?: { token?: string } } };
   const t = j.data?.jwt?.token;
   if (!t) throw new Error("Login Latitude sem token na resposta.");
-  cache = { token: t, ate: Date.now() + 6 * 24 * 3600 * 1000 }; // token vale ~7 dias
+  cache.set(empresaId, { token: t, ate: Date.now() + 6 * 24 * 3600 * 1000 }); // token vale ~7 dias
   return t;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Json = any;
 
-async function lat(method: string, path: string, body?: unknown, form?: FormData): Promise<Json> {
+async function lat(empresaId: string, method: string, path: string, body?: unknown, form?: FormData): Promise<Json> {
   const headers: Record<string, string> = {
-    Authorization: `Bearer ${await token()}`,
+    Authorization: `Bearer ${await token(empresaId)}`,
     Accept: "application/json",
   };
   if (!form) headers["Content-Type"] = "application/json";
@@ -180,12 +190,12 @@ function foneDaDescricao(desc: string): string {
 }
 
 /** Procura pessoa pelo nome + telefone. Retorna o id ou null. */
-export async function acharPessoa(nome: string, telefone: string): Promise<string | null> {
+export async function acharPessoa(nome: string, telefone: string, empresaId: string): Promise<string | null> {
   const q = nome.trim();
   if (q.length < 2) return null;
   const alvo = digitos(telefone).slice(-9);
   if (alvo.length < 8) return null;
-  const lista = (await lat("GET", `/pessoas/dropdown?nome=${encodeURIComponent(q)}&Tipo=1`)) as Json[];
+  const lista = (await lat(empresaId, "GET", `/pessoas/dropdown?nome=${encodeURIComponent(q)}&Tipo=1`)) as Json[];
   for (const p of lista ?? []) {
     if (foneDaDescricao(String(p.descricao ?? "")).endsWith(alvo)) return String(p.id);
   }
@@ -195,12 +205,13 @@ export async function acharPessoa(nome: string, telefone: string): Promise<strin
 async function garantirPessoa(
   captureId: string,
   p: LatitudeImovelInput["proprietario"],
+  empresaId: string,
 ): Promise<{ id: string; criada: boolean }> {
-  const existente = await acharPessoa(p.nome, p.telefone);
+  const existente = await acharPessoa(p.nome, p.telefone, empresaId);
   if (existente) return { id: existente, criada: false };
   let fone = digitos(p.telefone);
   if (fone.startsWith("55") && fone.length >= 12) fone = fone.slice(2);
-  const r = await lat("POST", "/pessoas/pessoa-fisica", {
+  const r = await lat(empresaId, "POST", "/pessoas/pessoa-fisica", {
     nome: p.nome.trim(),
     tipo: 1,
     email: p.email || undefined,
@@ -236,8 +247,7 @@ export async function enviarParaLatitude(
   input: LatitudeImovelInput,
   opts: { publicar?: boolean } = {},
 ): Promise<LatitudeResultado> {
-  const empresaId = process.env.LATITUDE_EMPRESA_ID;
-  if (!empresaId) throw new Error("LATITUDE_EMPRESA_ID não configurado.");
+  const empresaId = EMPRESAS_LATITUDE[input.agencia ?? AGENCIA_PADRAO];
   const pendentes: string[] = [
     "logradouro (nome da rua) — exige logradouroId do catálogo do Latitude",
     "descrição comercial — campo no rascunho ainda não identificado",
@@ -250,12 +260,12 @@ export async function enviarParaLatitude(
   }
 
   // proprietário primeiro: se falhar, nem cria rascunho
-  const pessoa = await garantirPessoa(input.captureId, input.proprietario);
+  const pessoa = await garantirPessoa(input.captureId, input.proprietario, empresaId);
 
-  let draft: Json = await lat("POST", "/propertydraft/initialize", { empresaId });
+  let draft: Json = await lat(empresaId, "POST", "/propertydraft/initialize", { empresaId });
   const id = String(draft.id);
   const etapa = async (n: number, mudancas: Record<string, unknown>) => {
-    draft = await lat("POST", `/propertydraft/${id}/step/${n}`, { ...draft, ...mudancas });
+    draft = await lat(empresaId, "POST", `/propertydraft/${id}/step/${n}`, { ...draft, ...mudancas });
   };
 
   try {
@@ -332,28 +342,28 @@ export async function enviarParaLatitude(
       form.append("SuperDestaque", "false");
       form.append("Descricao", f.nome);
       form.append("Ordem", String(i));
-      await lat("POST", "/propertydraft/upload-image", undefined, form);
+      await lat(empresaId, "POST", "/propertydraft/upload-image", undefined, form);
       enviadas++;
     }
     if (!input.fotos?.length) pendentes.push("fotos — nenhuma foto informada");
 
     let publicado = false;
     if (opts.publicar) {
-      await lat("POST", `/propertydraft/save-imovel/${id}`); // ⚠ nunca testado ao vivo
+      await lat(empresaId, "POST", `/propertydraft/save-imovel/${id}`); // ⚠ nunca testado ao vivo
       publicado = true;
     }
 
     return { imovelId: id, pessoaId: pessoa.id, pessoaCriada: pessoa.criada, fotosEnviadas: enviadas, publicado, camposIncompletos: pendentes };
   } catch (e) {
     // não deixa rascunho pela metade: desativa (exclusão lógica) e propaga o erro
-    await descartarRascunho(id).catch(() => {});
+    await descartarRascunho(id, empresaId).catch(() => {});
     throw e;
   }
 }
 
 /** Exclusão lógica do rascunho (ativo=false). NÃO mexe em imóvel já publicado. */
-export async function descartarRascunho(id: string): Promise<void> {
-  await lat("DELETE", `/propertydraft/${id}`);
+export async function descartarRascunho(id: string, empresaId: string): Promise<void> {
+  await lat(empresaId, "DELETE", `/propertydraft/${id}`);
 }
 
 // ─── Conversão a partir do protótipo/BrokerFlow (campos `f.*`) ────────────
@@ -402,7 +412,7 @@ export const tokenLatitude = token;
 export const LATITUDE_BASE = BASE;
 
 /** Acha o corretor no Latitude pelo nome (todas as palavras do nome informado precisam constar). */
-export async function acharCorretor(nome: string): Promise<string | null> {
+export async function acharCorretor(nome: string, empresaId: string): Promise<string | null> {
   const partes = nome
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -410,7 +420,7 @@ export async function acharCorretor(nome: string): Promise<string | null> {
     .split(/\s+/)
     .filter((p) => p.length > 1);
   if (partes.length === 0) return null;
-  const lista = (await lat("GET", `/brokers?name=${encodeURIComponent(nome.trim().split(/\s+/)[0])}`)) as Json[];
+  const lista = (await lat(empresaId, "GET", `/brokers?name=${encodeURIComponent(nome.trim().split(/\s+/)[0])}`)) as Json[];
   const candidatos = (lista ?? []).filter((b) => {
     if (b.excluido) return false;
     const n = String(b.nome ?? "")

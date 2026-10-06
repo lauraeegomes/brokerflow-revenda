@@ -3269,7 +3269,7 @@ function computeSecProximaAcao(item){
 }
 
 function SavedView({
-  f,cat,subcatCasa,savedAt,captId,
+  f,u,cat,subcatCasa,savedAt,captId,
   autorStatus,autorTs,authCode,setAutorStatus,setAutorTs,
   wppEnviar,wppPosAutorizacao,wppPosNegativa,
   marcarAutorizado,marcarNegado,
@@ -3647,6 +3647,13 @@ function SavedView({
                       ):(
                         <>
                           {!podeEnviar&&<div style={{fontSize:12,color:"#999",marginBottom:10}}>Conclua as pendências do checklist acima antes de enviar ao Latitude.</div>}
+                          <div style={{marginBottom:12}}>
+                            <label style={{fontSize:12,color:"#666",display:"block",marginBottom:4}}>Agência</label>
+                            <select value={f.agencia||"uberlandia"} onChange={e=>u("agencia",e.target.value)} style={{padding:"8px 10px",border:"1px solid #ddd",borderRadius:4,fontFamily:"inherit",fontSize:13}}>
+                              <option value="uberlandia">My Broker Uberlândia</option>
+                              <option value="santa_monica">My Broker Santa Mônica</option>
+                            </select>
+                          </div>
                           <button onClick={()=>{if(podeEnviar)enviarParaLatitudeStub();}} disabled={!podeEnviar} style={{padding:"12px 24px",background:podeEnviar?C.b2:"#e5e7eb",color:podeEnviar?"#fff":"#999",border:"none",borderRadius:4,cursor:podeEnviar?"pointer":"not-allowed",fontFamily:"inherit",fontWeight:700,fontSize:13}}>🚀 Subir para o Latitude</button>
                         </>
                       )}
@@ -3659,7 +3666,7 @@ function SavedView({
                 setLatStatus("processando");
                 registrarHistorico("Envio ao Latitude iniciado");
                 try{
-                  const r=await fetch("/api/latitude/enviar",{method:"POST",headers:{"Content-Type":"application/json"},credentials:"same-origin",body:JSON.stringify({captId})});
+                  const r=await fetch("/api/latitude/enviar",{method:"POST",headers:{"Content-Type":"application/json"},credentials:"same-origin",body:JSON.stringify({captId,agencia:f.agencia||"uberlandia"})});
                   const j=await r.json().catch(()=>({}));
                   if(r.ok||(r.status===409&&j.imovelId)){
                     setLatInfo({imovelId:j.imovelId,pendencias:j.pendencias||[]});
@@ -5391,7 +5398,7 @@ function chaveImovelUnidade(f){
         {/* ABA CAPTAÇÃO */}
         {tab==="captacao"&&(<>
           {saved&&!isEditing&&(
-            <SavedView f={f} cat={cat} subcatCasa={subcatCasa} savedAt={savedAt} captId={captId}
+            <SavedView f={f} u={u} cat={cat} subcatCasa={subcatCasa} savedAt={savedAt} captId={captId}
               autorStatus={autorStatus} autorTs={autorTs} authCode={authCode}
               setAutorStatus={setAutorStatus} setAutorTs={setAutorTs}
               wppEnviar={wppEnviar} wppPosAutorizacao={wppPosAutorizacao} wppPosNegativa={wppPosNegativa}
